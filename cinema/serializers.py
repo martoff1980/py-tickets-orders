@@ -1,6 +1,16 @@
 from rest_framework import serializers
 
-from cinema.models import Genre, Actor, CinemaHall, Movie, MovieSession
+from cinema.models import (
+    Order,
+    Ticket,
+    Genre,
+    Actor,
+    CinemaHall,
+    Movie,
+    MovieSession
+)
+
+from django.db import transaction
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -71,10 +81,163 @@ class MovieSessionListSerializer(MovieSessionSerializer):
         )
 
 
+class TicketTakenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = ("row", "seat")
+
+
 class MovieSessionDetailSerializer(MovieSessionSerializer):
     movie = MovieListSerializer(many=False, read_only=True)
     cinema_hall = CinemaHallSerializer(many=False, read_only=True)
+    # Обязательное поле
+    taken_places = TicketTakenSerializer(
+        source="tickets", many=True, read_only=True
+    )
 
     class Meta:
         model = MovieSession
-        fields = ("id", "show_time", "movie", "cinema_hall")
+        fields = ("id", "show_time", "movie", "cinema_hall", "taken_places")
+
+
+class TicketMovieSessionSerializer(serializers.ModelSerializer):
+    """
+    Provides the nested 'movie_session' details required
+    inside the Order list output.
+    """
+
+    movie_title = serializers.CharField(source="movie.title", read_only=True)
+    cinema_hall_name = serializers.CharField(
+        source="cinema_hall.name", read_only=True
+    )
+    cinema_hall_capacity = serializers.IntegerField(
+        source="cinema_hall.capacity", read_only=True
+    )
+
+    class Meta:
+        model = MovieSession
+        fields = (
+            "id",
+            "show_time",
+            "movie_title",
+            "cinema_hall_name",
+            "cinema_hall_capacity",
+        )
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    movie_session = TicketMovieSessionSerializer(read_only=True)
+
+    class Meta:
+        model = Ticket
+        fields = ("id", "row", "seat", "movie_session")
+
+    def validate(self, attrs):
+        # Опциональная задача: валидация мест
+        data = Ticket.objects.filter(
+            movie_session=attrs["movie_session"],
+            row=attrs["row"],
+            seat=attrs["seat"]
+        )
+        if data.exists():
+            raise serializers.ValidationError("This seat is already taken.")
+        return attrs
+
+
+class TicketListSerializer(TicketSerializer):
+    # Специальный сериализатор для отображения в списке заказов
+    movie_session = MovieSessionListSerializer(many=False, read_only=True)
+
+    class Meta:
+        model = Ticket
+        fields = ("id", "row", "seat", "movie_session")
+
+
+class TicketOrderSerializer(serializers.ModelSerializer):
+    movie_session = TicketMovieSessionSerializer(read_only=True)
+    movie_title = serializers.CharField(
+        source="movie_session.movie.title", read_only=True
+    )
+    cinema_hall_name = serializers.CharField(
+        source="movie_session.cinema_hall.name", read_only=True
+    )
+    cinema_hall_capacity = serializers.IntegerField(
+        source="movie_session.cinema_hall.capacity", read_only=True
+    )
+    tickets = TicketListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Ticket
+        fields = ("id", "row", "seat", "movie_session")
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    tickets = TicketOrderSerializer(
+        many=True, read_only=True, allow_empty=False
+    )
+
+    class Meta:
+        model = Order
+        fields = ("id", "tickets", "created_at")
+
+    def create(self, validated_data):
+        # Рекомендуется для заказов
+        with transaction.atomic():
+            tickets_data = validated_data.pop("tickets")
+            order = Order.objects.create(**validated_data)
+            for ticket_data in tickets_data:
+                Ticket.objects.create(order=order, **ticket_data)
+            return order
+
+
+class OrderListSerializer(OrderSerializer):
+    tickets = TicketListSerializer(many=True, read_only=True)
+
+
+class MovieSessionOrderSerializer(serializers.ModelSerializer):
+    """Специальный сериализатор для отображения внутри билета в заказе"""
+
+    movie_title = serializers.CharField(source="movie.title", read_only=True)
+    cinema_hall_name = serializers.CharField(
+        source="cinema_hall.name",
+        read_only=True
+    )
+    cinema_hall_capacity = serializers.IntegerField(
+        source="cinema_hall.capacity", read_only=True
+    )
+
+    class Meta:
+        model = MovieSession
+        fields = (
+            "id",
+            "show_time",
+            "movie_title",
+            "cinema_hall_name",
+            "cinema_hall_capacity",
+        )
+
+
+class TicketMovieSessionSerializer(serializers.ModelSerializer):
+    """
+    Provides the nested 'movie_session' details required
+    inside the Order list output.
+    """
+
+    movie_title = serializers.CharField(source="movie.title", read_only=True)
+    cinema_hall_name = serializers.CharField(
+        source="cinema_hall.name",
+        read_only=True
+    )
+    cinema_hall_capacity = serializers.IntegerField(
+        source="cinema_hall.capacity", read_only=True
+    )
+
+    class Meta:
+        model = MovieSession
+        fields = (
+            "id",
+            "show_time",
+            "movie_title",
+            "cinema_hall_name",
+            "cinema_hall_capacity",
+        )
