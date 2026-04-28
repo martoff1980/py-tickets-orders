@@ -217,27 +217,27 @@ class MovieSessionOrderSerializer(serializers.ModelSerializer):
         )
 
 
-class TicketMovieSessionSerializer(serializers.ModelSerializer):
-    """
-    Provides the nested 'movie_session' details required
-    inside the Order list output.
-    """
+# class TicketMovieSessionSerializer(serializers.ModelSerializer):
+#     """
+#     Provides the nested 'movie_session' details required
+#     inside the Order list output.
+#     """
 
-    movie_title = serializers.CharField(source="movie.title", read_only=True)
-    cinema_hall_name = serializers.CharField(
-        source="cinema_hall.name",
-        read_only=True
-    )
-    cinema_hall_capacity = serializers.IntegerField(
-        source="cinema_hall.capacity", read_only=True
-    )
+#     movie_title = serializers.CharField(source="movie.title", read_only=True)
+#     cinema_hall_name = serializers.CharField(
+#         source="cinema_hall.name",
+#         read_only=True
+#     )
+#     cinema_hall_capacity = serializers.IntegerField(
+#         source="cinema_hall.capacity", read_only=True
+#     )
 
-    class Meta:
-        model = MovieSession
-        fields = (
-            "id",
-            "show_time",
-            "movie_title",
-            "cinema_hall_name",
-            "cinema_hall_capacity",
-        )
+#     class Meta:
+#         model = MovieSession
+#         fields = (
+#             "id",
+#             "show_time",
+#             "movie_title",
+#             "cinema_hall_name",
+#             "cinema_hall_capacity",
+#         )
