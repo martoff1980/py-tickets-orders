@@ -9,3 +9,4 @@ djangorestframework-simplejwt
 black
 djlint
 crispy-bootstrap4
+pytest-django
